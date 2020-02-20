@@ -365,6 +365,12 @@ void populateFuncOpTypeConversionPattern(OwningRewritePatternList &patterns,
                                          MLIRContext *ctx,
                                          TypeConverter &converter);
 
+/// Add a pattern to the given pattern list to convert the result types of a
+/// CallOp with the given type converter.
+void populateCallOpTypeConversionPattern(OwningRewritePatternList &patterns,
+                                         MLIRContext *ctx,
+                                         TypeConverter &converter);
+
 //===----------------------------------------------------------------------===//
 // Conversion PatternRewriter
 //===----------------------------------------------------------------------===//
