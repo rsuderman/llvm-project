@@ -433,3 +433,54 @@ func @reduce_int(%arg0: tensor<5x4xi32>) -> () {
   %4 = "tosa.reduce_max"(%arg0) {axis = 0 : i64} : (tensor<5x4xi32>) -> tensor<4xi32>
   return
 }
+
+// -----
+
+// CHECK: #[[$MAP0:.*]] = affine_map<(d0) -> (d0)>
+// CHECK: #[[$MAP1:.*]] = affine_map<(d0) -> (0)>
+
+// CHECK-LABEL: @rescale
+func @rescale(%arg0 : tensor<1xi8>) -> (tensor<1xi8>) {
+  // CHECK: [[C0:%.+]] = constant dense<19689>
+  // CHECK: [[C1:%.+]] = constant dense<15>
+  // CHECK: [[INIT:%.+]] = linalg.init_tensor [1]
+  // CHECK: [[GENERIC:%.+]] = linalg.generic {indexing_maps = [#map0, #map1, #map1, #map0], iterator_types = ["parallel"]} ins(%arg0, [[C0]], [[C1]] : tensor<1xi8>, tensor<1xi32>, tensor<1xi32>) outs([[INIT]] : tensor<1xi8>)
+  // CHECK-DAG: ^bb0([[IN:%.+]]: i8, [[MULTIPLIER:%.+]]: i32, [[SHIFT:%.+]]: i32, [[UNUSED:%.+]]: i8):
+  // CHECK-DAG:   [[CONST2:%.+]] = constant 243 : i32
+  // CHECK-DAG:   [[CONST3:%.+]] = constant 252 : i32
+  // CHECK-DAG:   [[ONE:%.+]] = constant 1 : i32
+
+  // CHECK-DAG:   [[IN_32:%.+]] = sexti [[IN]] : i8 to i32
+  // CHECK-DAG:   [[IN_ZEROED:%.+]] = subi [[IN_32]], [[CONST2]]
+  // CHECK-DAG:   [[SHIFT_MINUS_ONE:%.+]] = subi [[SHIFT]], [[ONE]]
+
+  // CHECK-DAG:   [[ONE_64:%.+]] = sexti [[ONE]] : i32 to i64
+  // CHECK-DAG:   [[SHIFT_MINUS_ONE_64:%.+]] = sexti [[SHIFT_MINUS_ONE]] : i32 to i64
+  // CHECK-DAG:   [[ROUND:%.+]] = shift_left [[ONE_64]], [[SHIFT_MINUS_ONE_64]]
+
+  // CHECK-DAG:   [[MULTIPLIER_64:%.+]] = sexti [[MULTIPLIER]] : i32 to i64
+  // CHECK-DAG:   [[IN_64:%.+]] = sexti [[IN_ZEROED]] : i32 to i64
+  // CHECK-DAG:   [[MUL:%.+]] = muli [[IN_64]], [[MULTIPLIER_64]]
+  // CHECK-DAG:   [[NEW_VAL:%.+]] = addi [[MUL]], [[ROUND]]
+
+
+  // CHECK-DAG:   [[SHIFT_EXT:%.+]] = sexti [[SHIFT]] : i32 to i64
+  // CHECK-DAG:   [[SHIFTED:%.+]] = shift_right_signed [[NEW_VAL]], [[SHIFT_EXT]] : i64
+  // CHECK-DAG:   [[TRUNCATED:%.+]] = trunci [[SHIFTED]] : i64 to i32
+  // CHECK-DAG:   [[OUT_ZEROED:%.+]] = addi [[TRUNCATED]], [[CONST3]] 
+
+  // CHECK-DAG:   [[INT_MIN:%.+]] = constant -128
+  // CHECK-DAG:   [[CHECK_LOWER:%.+]] = cmpi slt, [[OUT_ZEROED]], [[INT_MIN]]
+  // CHECK-DAG:   [[LOWER_BOUND:%.+]] = select [[CHECK_LOWER]], [[INT_MIN]], %15
+
+  // CHECK-DAG:   [[INT_MAX:%.+]] = constant 127 : i32
+  // CHECK-DAG:   [[CHECK_UPPER:%.+]] = cmpi slt, [[INT_MAX]], %15 : i32
+  // CHECK-DAG:   [[UPPER_BOUND:%.+]] = select [[CHECK_UPPER]], [[INT_MAX]], [[LOWER_BOUND]] : i32
+  // CHECK-DAG:   [[RESULT:%.+]] = trunci [[UPPER_BOUND]]
+  // CHECK-DAG:   linalg.yield [[RESULT]]
+  %0 = "tosa.rescale"(%arg0) {input_zp = 243 : i32, output_zp = 252 : i32, multiplier = [19689 : i32], shift = [15 : i32], scale32 = false, double_round = false, per_channel = false} : (tensor<1xi8>)  -> (tensor<1xi8>)
+
+  // CHECK: return [[GENERIC]]
+  return %0 : tensor<1xi8>
+}
+
