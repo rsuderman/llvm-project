@@ -6,3 +6,11 @@ func.func @slice(%arg0: tensor<6xf32>) ->() {
   %0 = "tosa.slice"(%arg0) {start = [2], size = [1]} : (tensor<6xf32>)  -> (tensor<1xf32>)
   return
 }
+
+// -----
+
+// CHECK-LABLE: func @slice_dynt 
+func.func @slice_dyn(%arg0: tensor<?xf32>) ->() {
+  %0 = "tosa.slice"(%arg0) {start = [2], size = [-1]} : (tensor<?xf32>)  -> (tensor<?xf32>)
+  return
+}
